@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Impressionist Air Piano</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Impressionist Air Piano</h1>
+        <div class="piano-container">
+            <div class="video-container">
+                <video id="webcam" autoplay playsinline></video>
+                <canvas id="output-canvas"></canvas>
+                <canvas id="visual-effect"></canvas>
+            </div>
+            <div class="piano">
+                <div class="keys">
+                    <div class="key white" data-note="C4"></div>
+                    <div class="key black" data-note="C#4"></div>
+                    <div class="key white" data-note="D4"></div>
+                    <div class="key black" data-note="D#4"></div>
+                    <div class="key white" data-note="E4"></div>
+                    <div class="key white" data-note="F4"></div>
+                    <div class="key black" data-note="F#4"></div>
+                    <div class="key white" data-note="G4"></div>
+                    <div class="key black" data-note="G#4"></div>
+                    <div class="key white" data-note="A4"></div>
+                    <div class="key black" data-note="A#4"></div>
+                    <div class="key white" data-note="B4"></div>
+                    <div class="key white" data-note="C5"></div>
+                </div>
+            </div>
+        </div>
+        <div class="controls">
+            <button id="start-btn">Start Air Piano</button>
+            <div class="settings">
+                <label>
+                    <input type="checkbox" id="show-hands" checked>
+                    Show Hand Tracking
+                </label>
+                <label>
+                    <input type="checkbox" id="impressionist-mode" checked>
+                    Impressionist Mode
+                </label>
+            </div>
+        </div>
+        <div class="instructions">
+            <h2>How to Play</h2>
+            <p>Move your hands in front of the camera. Your fingertips will trigger piano notes when they enter the key zones.</p>
+            <p>The visual effects are inspired by impressionist art - watch as your movements create colorful brushstrokes!</p>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
