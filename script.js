@@ -12,10 +12,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const outputCtx = outputCanvas.getContext('2d');
     const visualCtx = visualCanvas.getContext('2d');
     
+    // Set initial canvas dimensions
+    outputCanvas.width = 640;
+    outputCanvas.height = 480;
+    visualCanvas.width = 640;
+    visualCanvas.height = 480;
+    
     // MediaPipe Hands setup
     const hands = new Hands({
         locateFile: (file) => {
-            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`;
         }
     });
     
@@ -46,14 +52,37 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initialize camera
     function startCamera() {
-        const camera = new Camera(video, {
-            onFrame: async () => {
-                await hands.send({ image: video });
-            },
-            width: 640,
-            height: 360
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            alert('Your browser does not support the camera API. Please try a different browser.');
+            return;
+        }
+        
+        // First get user media
+        navigator.mediaDevices.getUserMedia({
+            video: {
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            }
+        })
+        .then(stream => {
+            video.srcObject = stream;
+            video.onloadedmetadata = () => {
+                video.play();
+                // Now initialize the camera with MediaPipe
+                const camera = new Camera(video, {
+                    onFrame: async () => {
+                        await hands.send({ image: video });
+                    },
+                    width: 1280,
+                    height: 720
+                });
+                camera.start();
+            };
+        })
+        .catch(err => {
+            console.error('Error accessing the camera:', err);
+            alert('Could not access the camera: ' + err.message);
         });
-        camera.start();
     }
     
     // Calculate piano key zones based on canvas size
@@ -61,7 +90,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const canvasWidth = outputCanvas.width;
         const canvasHeight = outputCanvas.height;
         const keyHeight = canvasHeight * 0.3;
-        const keyTop = canvasHeight - keyHeight;
+        // Change this line to move the piano to the upper part of the screen
+        const keyTop = canvasHeight * 0.1; // Changed from canvasHeight - keyHeight
         
         keyZones = [];
         
@@ -85,13 +115,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const blackKeys = Array.from(document.querySelectorAll('.key.black'));
         const blackKeyWidth = whiteKeyWidth * 0.6;
         
-        blackKeys.forEach(key => {
+        // Manually position black keys
+        const blackKeyPositions = [
+            0.065, // C#
+            0.149, // D#
+            0.317, // F#
+            0.401, // G#
+            0.485  // A#
+        ];
+        
+        blackKeys.forEach((key, index) => {
             const note = key.dataset.note;
-            const leftOffset = parseFloat(key.style.left || getComputedStyle(key).left) / 100;
+            const leftOffset = blackKeyPositions[index];
             
             keyZones.push({
                 note: note,
-                x: canvasWidth * leftOffset,
+                x: canvasWidth * leftOffset - blackKeyWidth / 2,
                 y: keyTop,
                 width: blackKeyWidth,
                 height: keyHeight * 0.6,
@@ -100,15 +139,31 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // Draw piano key zones on canvas (for debugging)
+    // Draw piano key zones on canvas
     function drawKeyZones() {
         outputCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
         
+        // Draw video frame (mirrored)
+        if (showHandsCheckbox.checked) {
+            outputCtx.save();
+            outputCtx.translate(outputCanvas.width, 0);
+            outputCtx.scale(-1, 1);
+            outputCtx.drawImage(video, 0, 0, outputCanvas.width, outputCanvas.height);
+            outputCtx.restore();
+        }
+        
+        // Draw key zones
         keyZones.forEach(zone => {
             outputCtx.fillStyle = zone.note.includes('#') ? 'rgba(0, 0, 0, 0.5)' : 'rgba(255, 255, 255, 0.5)';
             outputCtx.fillRect(zone.x, zone.y, zone.width, zone.height);
             outputCtx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
             outputCtx.strokeRect(zone.x, zone.y, zone.width, zone.height);
+            
+            // Add note label
+            outputCtx.fillStyle = zone.note.includes('#') ? 'white' : 'black';
+            outputCtx.font = '12px Arial';
+            outputCtx.textAlign = 'center';
+            outputCtx.fillText(zone.note, zone.x + zone.width / 2, zone.y + zone.height - 10);
         });
     }
     
@@ -162,7 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // Process hand landmarks
-    hands.onResults(results => {
+    hands.onResults((results) => {
         // Resize canvases if needed
         if (outputCanvas.width !== video.videoWidth || outputCanvas.height !== video.videoHeight) {
             outputCanvas.width = video.videoWidth;
@@ -172,31 +227,49 @@ document.addEventListener('DOMContentLoaded', () => {
             calculateKeyZones();
         }
         
-        // Clear output canvas
-        outputCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
-        
         // Apply fade effect to visual canvas
         fadeCanvas();
         
-        // Draw video frame (mirrored)
-        if (showHandsCheckbox.checked) {
-            outputCtx.save();
-            outputCtx.translate(outputCanvas.width, 0);
-            outputCtx.scale(-1, 1);
-            outputCtx.drawImage(video, 0, 0, outputCanvas.width, outputCanvas.height);
-            outputCtx.restore();
-        }
-        
-        // Draw key zones
+        // Draw key zones (includes drawing the video frame if enabled)
         drawKeyZones();
         
         // Track which notes should be active
         const notesToPlay = new Set();
         
-        if (results.multiHandLandmarks) {
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
             for (const landmarks of results.multiHandLandmarks) {
                 // Draw hand landmarks if enabled
                 if (showHandsCheckbox.checked) {
+                    // Draw connections between landmarks
+                    outputCtx.lineWidth = 3;
+                    outputCtx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
+                    
+                    // Draw hand connections (simplified)
+                    const connections = [
+                        [0, 1], [1, 2], [2, 3], [3, 4], // thumb
+                        [0, 5], [5, 6], [6, 7], [7, 8], // index finger
+                        [0, 9], [9, 10], [10, 11], [11, 12], // middle finger
+                        [0, 13], [13, 14], [14, 15], [15, 16], // ring finger
+                        [0, 17], [17, 18], [18, 19], [19, 20] // pinky
+                    ];
+                    
+                    for (const [i, j] of connections) {
+                        const start = landmarks[i];
+                        const end = landmarks[j];
+                        
+                        // Mirror x coordinates
+                        const startX = outputCanvas.width - start.x * outputCanvas.width;
+                        const startY = start.y * outputCanvas.height;
+                        const endX = outputCanvas.width - end.x * outputCanvas.width;
+                        const endY = end.y * outputCanvas.height;
+                        
+                        outputCtx.beginPath();
+                        outputCtx.moveTo(startX, startY);
+                        outputCtx.lineTo(endX, endY);
+                        outputCtx.stroke();
+                    }
+                    
+                    // Draw landmarks
                     for (let i = 0; i < landmarks.length; i++) {
                         const landmark = landmarks[i];
                         outputCtx.fillStyle = 'rgba(255, 0, 0, 0.8)';
@@ -260,6 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Request audio context to be resumed
             await Tone.start();
             startCamera();
+            calculateKeyZones();
             startBtn.disabled = true;
             startBtn.textContent = 'Air Piano Active';
         } catch (error) {
@@ -302,5 +376,5 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initial resize
     window.addEventListener('resize', resizeCanvases);
-    resizeCanvases();
+    setTimeout(resizeCanvases, 100); // Delay to ensure container has been rendered
 });
